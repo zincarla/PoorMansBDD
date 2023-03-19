@@ -64,7 +64,7 @@ PoorMansBDDRestore.ps1 [[-RestorePath] <string>] [[-BackupDirectory] <string>] [
 
 `-BackupDirectory` is the path to the root of the backup directory. Should be the same path as used in `PoorMansBackupAndDedup.ps1`
 
-`-RestorePathFilter` is a regex filter you can optionally specify to filter what gets backed up. If you want to only restore images you could use `"(jpg|png|bmp)$"` or another such filter. This filter is run on the subpatch of the file as compared to the backup root, so you can restore only specific folders with the same paramter.
+`-RestorePathFilter` is a regex filter you can optionally specify to filter what gets backed up. If you want to only restore images you could use `"(jpg|png|bmp)$"` or another such filter. This filter is run on the subpath of the file as compared to the backup root, so you can restore only specific folders with the same paramter.
 
 `-BackupCatalog` is the full path to the specific catalog you want to restore, usually found in the `BackupDirectory` in the `BackupCatalogs` directory.
 
