@@ -157,7 +157,7 @@ $FilesProcessed = 0
 $MaxFiles = $ToBackup.Length
 Write-Progress -Activity "Parsing files to backup" -PercentComplete 0
 foreach ($File in $ToBackup) {
-    Write-Progress -Activity "Parsing files to backup" -Status "Initial parse of $File.FullName" -PercentComplete ($FilesProcessed*100/$MaxFiles)
+    Write-Progress -Activity "Parsing files to backup" -Status "Initial parse of $($File.FullName)" -PercentComplete ($FilesProcessed*100/$MaxFiles)
         
     $ItemType = ""
     if ($File.Attributes.HasFlag([System.IO.FileAttributes]::Directory)) {
