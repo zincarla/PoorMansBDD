@@ -83,12 +83,12 @@ foreach ($File in $BackupCatalogData) {
         continue
     }
     $RestoreTarget = (Join-Path -Path $RestorePath -ChildPath $File.Path)
-    if ($File.Type -eq "Directory") {
+    if ($File.Type -eq "Directory" -and -not (Test-Path -LiteralPath $RestoreTarget)) {
         $Null = New-Item -Path $RestoreTarget -ItemType Directory
     }
     if ($File.Type -eq "File" -and ($Overwrite -or -not (Test-Path -LiteralPath $RestoreTarget))) {
         
-        if (-not (Test-Path (Split-Path -Path $RestoreTarget -Parent))) {
+        if (-not (Test-Path -LiteralPath (Split-Path -Path $RestoreTarget -Parent))) {
             $Null = New-Item -Path (Split-Path -LiteralPath $RestoreTarget -Parent) -ItemType Directory -Force
         }
 
