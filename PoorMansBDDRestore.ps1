@@ -89,7 +89,7 @@ foreach ($File in $BackupCatalogData) {
     if ($File.Type -eq "File" -and ($Overwrite -or -not (Test-Path -LiteralPath $RestoreTarget))) {
         
         if (-not (Test-Path (Split-Path -Path $RestoreTarget -Parent))) {
-            $Null = New-Item -Path (Split-Path -Path $RestoreTarget -Parent) -ItemType Directory -Force
+            $Null = New-Item -Path (Split-Path -LiteralPath $RestoreTarget -Parent) -ItemType Directory -Force
         }
 
         #Restore the file, overwrite if selected
