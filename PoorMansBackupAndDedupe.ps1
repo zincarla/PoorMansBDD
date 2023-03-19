@@ -238,7 +238,7 @@ if ($UseDatesForDelta) {
             $Metrics["DeltasFound"]+=1
         }
         $FilesProcessed++
-        Write-Progress -Activity "Parsing files to backup" -Status "Delta parse of $Path" -PercentComplete ($FilesProcessed*100/$MaxFiles)
+        Write-Progress -Activity "Parsing files to backup" -Status "Delta parse of $($NewCatalogInfo[$I].Path)" -PercentComplete ($FilesProcessed*100/$MaxFiles)
     }
     Write-Progress -Activity "Parsing files to backup" -PercentComplete 100 -Completed
     $DeltaCatalog = $null
