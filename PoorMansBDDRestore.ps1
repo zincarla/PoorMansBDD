@@ -1,5 +1,5 @@
 ﻿#Requires -PSEdition Core
-Param([string]$RestorePath,[string]$BackupDirectory,[string]$BackupCatalog,[switch]$Overwrite)
+Param([string]$RestorePath,[string]$BackupDirectory,[string]$RestorePathFilter,[string]$BackupCatalog,[switch]$Overwrite)
 
 if ($IsMacOS) {
     Write-Error "Unsupported OS"
@@ -78,11 +78,20 @@ $BackupCatalogData = Import-Csv -LiteralPath $BackupCatalog -ErrorAction Stop
 $FI =0
 foreach ($File in $BackupCatalogData) {
     Write-Progress -Activity "Restoring Files" -Status $File.Path -PercentComplete ($FI*100/$BackupCatalogData.Length)
+    if ($RestorePathFilter -ne "" -and $File.Path -notmatch $RestorePathFilter) {
+        $FI++
+        continue
+    }
     $RestoreTarget = (Join-Path -Path $RestorePath -ChildPath $File.Path)
     if ($File.Type -eq "Directory") {
         $Null = New-Item -Path $RestoreTarget -ItemType Directory
     }
     if ($File.Type -eq "File" -and ($Overwrite -or -not (Test-Path -LiteralPath $RestoreTarget))) {
+        
+        if (-not (Test-Path (Split-Path -Path $RestoreTarget -Parent))) {
+            $Null = New-Item -Path (Split-Path -Path $RestoreTarget -Parent) -ItemType Directory -Force
+        }
+
         #Restore the file, overwrite if selected
         $null = Copy-Item -LiteralPath (Get-BackupFileHashPath -BackupDirectory $BackupDirectory -Hash $File.Hash) -Destination $RestoreTarget -Force
     }
