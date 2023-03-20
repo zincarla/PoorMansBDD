@@ -1,5 +1,5 @@
 ﻿#Requires -PSEdition Core
-Param([string]$BackupSource,[string]$BackupDirectory,[switch]$UseDatesForDelta,[string]$DeltaCatalogPath,[switch]$NoContinueOnDeltaFail,[int32]$AutoRemoveTime)
+Param([string]$BackupSource,[string]$BackupDirectory,[switch]$UseDatesForDelta,[string]$DeltaCatalogPath,[switch]$NoContinueOnDeltaFail,[int32]$AutoRemoveTime,[string]$IncludeFilter,[string]$ExcludeFilter)
 
 $Metrics = @{}
 
@@ -150,6 +150,7 @@ Write-Host "Grabbing list of files to backup"
 $ToBackup = Get-ChildItem -LiteralPath $BackupSource -Recurse | Where-Object {$_.FullName -notlike "$BackupDirectory*"}
 $Metrics.Add("Files", 0)
 $Metrics.Add("Directories", 0)
+$Metrics.Add("Excluded",0)
 
 #Build the new catalog
 $NewCatalogInfo = @()
@@ -158,7 +159,18 @@ $MaxFiles = $ToBackup.Length
 Write-Progress -Activity "Parsing files to backup" -PercentComplete 0
 foreach ($File in $ToBackup) {
     Write-Progress -Activity "Parsing files to backup" -Status "Initial parse of $($File.FullName)" -PercentComplete ($FilesProcessed*100/$MaxFiles)
-        
+    
+    $RelPath = $File.FullName.Substring($BackupSource.Length)
+
+    if ($IncludeFilter -ne "" -and $RelPath -notmatch $IncludeFilter) {
+        $Metrics["Excluded"]+=1
+        continue #Do not add to catalog
+    }
+    if ($ExcludeFilter -ne "" -and $RelPath -match $ExcludeFilter) {
+        $Metrics["Excluded"]+=1
+        continue #Do not add to catalog
+    }
+
     $ItemType = ""
     if ($File.Attributes.HasFlag([System.IO.FileAttributes]::Directory)) {
         $ItemType = "Directory"
@@ -193,7 +205,7 @@ foreach ($File in $ToBackup) {
         $Group = $Access.Group
     }
     
-    $NewCatalogInfo += New-Object -TypeName PSObject -Property @{Type=$ItemType; Path=$File.FullName.Substring($BackupSource.Length); Size=$Size; Hash=""; LastWriteTimeUtc=$LastWriteTime; CreationTimeUtc=$CreateTime; Permissions=$Permissions; User=$User; Group=$Group; Attributes=[int64]$File.Attributes}
+    $NewCatalogInfo += New-Object -TypeName PSObject -Property @{Type=$ItemType; Path=$RelPath; Size=$Size; Hash=""; LastWriteTimeUtc=$LastWriteTime; CreationTimeUtc=$CreateTime; Permissions=$Permissions; User=$User; Group=$Group; Attributes=[int64]$File.Attributes}
     $FilesProcessed++
 }
 Write-Progress -Activity "Parsing files to backup" -PercentComplete 100 -Completed

@@ -1,5 +1,5 @@
 ﻿#Requires -PSEdition Core
-Param([string]$RestorePath,[string]$BackupDirectory,[string]$RestorePathFilter,[string]$BackupCatalog,[switch]$Overwrite)
+Param([string]$RestorePath,[string]$BackupDirectory,[string]$IncludeFilter,[string]$ExcludeFilter,[string]$BackupCatalog,[switch]$Overwrite)
 
 if ($IsMacOS) {
     Write-Error "Unsupported OS"
@@ -78,7 +78,11 @@ $BackupCatalogData = Import-Csv -LiteralPath $BackupCatalog -ErrorAction Stop
 $FI =0
 foreach ($File in $BackupCatalogData) {
     Write-Progress -Activity "Restoring Files" -Status $File.Path -PercentComplete ($FI*100/$BackupCatalogData.Length)
-    if ($RestorePathFilter -ne "" -and $File.Path -notmatch $RestorePathFilter) {
+    if ($IncludeFilter -ne "" -and $File.Path -notmatch $IncludeFilter) {
+        $FI++
+        continue
+    }
+    if ($ExcludeFilter -ne "" -and $File.Path -match $ExcludeFilter) {
         $FI++
         continue
     }
