@@ -1,6 +1,8 @@
 ﻿#Requires -PSEdition Core
 Param([string]$BackupSource,[string]$BackupDirectory,[switch]$UseDatesForDelta,[string]$DeltaCatalogPath,[switch]$NoContinueOnDeltaFail,[int32]$AutoRemoveTime,[string]$IncludeFilter,[string]$ExcludeFilter)
 
+$BackupDirectory = (Get-Item -LiteralPath $BackupDirectory -ErrorAction Stop).FullName
+
 $Metrics = @{}
 
 $Metrics.Add("StartTime",[DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))
@@ -8,38 +10,6 @@ $Metrics.Add("StartTime",[DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))
 if ($IsMacOS) {
     Write-Error "Unsupported OS"
     return
-}
-
-function ConvertTo-ACLString {
-    Param($ACL)
-    $ToReturn=""
-    foreach ($Access in $ACL.Access) {
-        $ToReturn+=([int64]$Access.FileSystemRights).ToString()+":"+([int64]$Access.AccessControlType).ToString()+":"+$Access.IdentityReference.Value+":"+([int64]$Access.IsInherited).ToString()+":"+([int64]$Access.InheritanceFlags).ToString()+":"+([int64]$Access.PropagationFlags).ToString()+";"
-    }
-    return $ToReturn
-}
-
-function ConvertFrom-ACLString {
-    Param($ACLString)
-    $ToReturn=@()
-
-    $AccessList = $ACLString.Split(";", [StringSplitOptions]::RemoveEmptyEntries)
-
-    foreach ($Access in $AccessList) {
-        $AccessProperties = $Access.Split(":", [StringSplitOptions]::RemoveEmptyEntries)
-
-        $FileSystemRights = [System.Security.AccessControl.FileSystemRights]([int64]$AccessProperties[0])
-        $AccessControlType = [System.Security.AccessControl.AccessControlType]([int64]$AccessProperties[1])
-        $AccessIdentity = $AccessProperties[2]
-        $IsInherited = [bool]([int64]$AccessProperties[3])
-        $InheritanceFlags = [System.Security.AccessControl.InheritanceFlags]([int64]$AccessProperties[4])
-        $PropagationFlags = [System.Security.AccessControl.PropagationFlags]([int64]$AccessProperties[5])
-
-        $NewRule = [System.Security.AccessControl.FileSystemAccessRule]::new($AccessIdentity, $FileSystemRights, $InheritanceFlags, $PropagationFlags, $AccessControlType)
-        $ToReturn+=$NewRule
-    }
-
-    return $ToReturn
 }
 
 function Backup-File {
@@ -117,6 +87,41 @@ function Convert-UnixFileModeToChmod {
     return $Special.ToString()+$User.ToString()+$Group.ToString()+$Others.ToString()
 }
 
+function Get-FileLock {
+    param(
+        [parameter(Mandatory=$True)]
+        [string]$LiteralPath
+    )
+
+    try {
+        $LockFile = [System.IO.FileInfo]::new($LiteralPath)
+        $LockStream = $LockFile.Open([System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+        return $LockStream
+    } 
+    catch
+    {
+        return $null
+    }
+}
+function Remove-FileLock {
+    param(
+        [parameter(Mandatory=$True)]
+        [System.IO.Stream]$FileLock
+    )
+
+    $FileLock.Close()
+    $FileLock.Dispose()
+
+    Remove-Item -Path $FileLock.Name -ErrorAction SilentlyContinue
+}
+
+#Prevent attempting to do stuff when another script is messing with the files
+$FileLockPath = (Join-Path -Path $BackupDirectory -ChildPath "BackupLock.lck")
+$FileLock = Get-FileLock -LiteralPath $FileLockPath
+if ($FileLock -eq $null) {
+    throw "A backup operation already appears to be in progress. Please wait for that to finish before manipulating backup files. If no backup operations are in progress, then a open powershell session likely was used for a backup that was cancelled. Restart PowerShell if so. (A lock to $FileLockPath could not be established)"
+}
+
 #Fill out some path variables
 $MasterCatalogPath = Join-Path -Path $BackupDirectory -ChildPath "MasterCatalog.csv"
 $BackupCatalogsDirectory = Join-Path -Path $BackupDirectory -ChildPath "BackupCatalogs"
@@ -136,6 +141,7 @@ if ($DeltaCatalogPath -eq "" -and $UseDatesForDelta) {
     } else {
         Write-Warning "Failed to grab delta file, none found"
         if ($NoContinueOnDeltaFail) {
+            Remove-FileLock -FileLock $FileLock
             return
         }
         $UseDatesForDelta = $false
@@ -147,7 +153,14 @@ $Metrics.Add("DeltaCatalog", [string]$DeltaCatalogPath)
 Write-Host "Grabbing list of files to backup"
 
 #Grab a list of files to be backed up
-$ToBackup = Get-ChildItem -LiteralPath $BackupSource -Recurse | Where-Object {$_.FullName -notlike "$BackupDirectory*"}
+$ToBackup = Get-ChildItem -LiteralPath $BackupSource -Recurse
+if ($IsWindows) {
+    $ToBackup = $ToBackup | Where-Object {$_.FullName -inotlike "$BackupDirectory*"}
+}
+if ($IsLinux) {
+    $ToBackup = $ToBackup | Where-Object {$_.FullName -cnotlike "$BackupDirectory*"}
+}
+
 $Metrics.Add("Files", 0)
 $Metrics.Add("Directories", 0)
 $Metrics.Add("Excluded",0)
@@ -262,9 +275,12 @@ Write-Progress -Activity "Hashing files" -PercentComplete 0
 $Metrics.Add("FilesHashed", 0)
 for ($I=0; $I-lt $NewCatalogInfo.Length; $I++) {
     if (($NewCatalogInfo[$I].Hash -eq "" -or $NewCatalogInfo[$I].Hash -eq $null) -and $NewCatalogInfo[$I].Type -eq "File") {
+        $HashData = ""
         $HashData = Get-FileHash -LiteralPath (Join-Path -Path $BackupSource -ChildPath $NewCatalogInfo[$I].Path) -Algorithm SHA256
-        $NewCatalogInfo[$I].Hash = $HashData.Hash.ToString()
-        $Metrics["FilesHashed"]+=1
+        if ($HashData -ne "" -and $HashData -ne $null) {
+            $NewCatalogInfo[$I].Hash = $HashData.Hash.ToString()
+            $Metrics["FilesHashed"]+=1
+        }
     }
     Write-Progress -Activity "Hashing files" -Status $NewCatalogInfo[$I].Path -PercentComplete ($I*100/$NewCatalogInfo.Length)
 }
@@ -352,3 +368,5 @@ foreach($Key in $Metrics.Keys) {
 }
 
 $ToSave | Out-File -FilePath (Join-Path -Path $BackupDirectory -ChildPath "Metrics.txt") -Force
+
+Remove-FileLock -FileLock $FileLock

@@ -50,12 +50,15 @@ A folder called `BackupCatalogs`. This will contain several CSV files, each keep
 
 A folder called BackupFiles, with sub folders 2 levels deep. These folder are named after the first to characters of a hash, and each file backed up will appear in the deepest part of this tree. For example, if a file is backed up and hashed as AABD..., it will be backed up as `/BackupFiles/A/A/AABD...`
 
-## PoorMansBDDMasterCatalogRebuild.ps1
+## PoorMansBDDBackupManagement.ps1
 
-If for whatever reason, the backedup files and catalogs drift out of sync. For example, a catalog is deleted, or the MasterCatalog is deleted. You can re-build the MasterCatalog with this script. This will rebuild the catalog based on the files found in `BackupFiles` and the catalogs in `BackupCatalogs`.
+Allows you to do various maintenance taskes on the backup files and catalogs. Primarily, you can Rebuild the MasterCatalog in case it is ever deleted or falls out of sync with the other catalogs. Verify a specific backup to ensure you have the necessary files to restore it. Delete a specific backup catalog and it's associated files assuming those files are not used for another backup catalog. Or you can delete orphaned backup files that are not in the MasterCatalog.
 
 ```powershell
-PoorMansBDDMasterCatalogRebuild.ps1 [[-BackupDirectory] <string>]
+PoorMansBDDBackupManagement.ps1 -VerifyBackupCatalog -BackupDirectory <string> -BackupCatalogPath <string> [-WhatIf] [-Confirm] [<CommonParameters>]
+PoorMansBDDBackupManagement.ps1 -RemoveOrphanedBackupFiles -BackupDirectory <string> [-WhatIf] [-Confirm] [<CommonParameters>]
+PoorMansBDDBackupManagement.ps1 -DeleteBackupCatalog -BackupDirectory <string> -BackupCatalogPath <string> [-WhatIf] [-Confirm] [<CommonParameters>]
+PoorMansBDDBackupManagement.ps1 -RebuildMasterCatalog -BackupDirectory <string> [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
 ## PoorMansBDDRestore.ps1

@@ -6,38 +6,6 @@ if ($IsMacOS) {
     return
 }
 
-function ConvertTo-ACLString {
-    Param($ACL)
-    $ToReturn=""
-    foreach ($Access in $ACL.Access) {
-        $ToReturn+=([int64]$Access.FileSystemRights).ToString()+":"+([int64]$Access.AccessControlType).ToString()+":"+$Access.IdentityReference.Value+":"+([int64]$Access.IsInherited).ToString()+":"+([int64]$Access.InheritanceFlags).ToString()+":"+([int64]$Access.PropagationFlags).ToString()+";"
-    }
-    return $ToReturn
-}
-
-function ConvertFrom-ACLString {
-    Param($ACLString)
-    $ToReturn=@()
-
-    $AccessList = $ACLString.Split(";", [StringSplitOptions]::RemoveEmptyEntries)
-
-    foreach ($Access in $AccessList) {
-        $AccessProperties = $Access.Split(":", [StringSplitOptions]::RemoveEmptyEntries)
-
-        $FileSystemRights = [System.Security.AccessControl.FileSystemRights]([int64]$AccessProperties[0])
-        $AccessControlType = [System.Security.AccessControl.AccessControlType]([int64]$AccessProperties[1])
-        $AccessIdentity = $AccessProperties[2]
-        $IsInherited = [bool]([int64]$AccessProperties[3])
-        $InheritanceFlags = [System.Security.AccessControl.InheritanceFlags]([int64]$AccessProperties[4])
-        $PropagationFlags = [System.Security.AccessControl.PropagationFlags]([int64]$AccessProperties[5])
-
-        $NewRule = [System.Security.AccessControl.FileSystemAccessRule]::new($AccessIdentity, $FileSystemRights, $InheritanceFlags, $PropagationFlags, $AccessControlType)
-        $ToReturn+=$NewRule
-    }
-
-    return $ToReturn
-}
-
 function Backup-File {
     Param($FilePath, $BackupDirectory, $Hash)
     #Build Dirs
@@ -62,6 +30,41 @@ function Get-BackupFileHashPath {
     $BackupFilePath = Join-Path -Path $BackupPath -ChildPath $Hash
 
     return $BackupFilePath
+}
+
+function Get-FileLock {
+    param(
+        [parameter(Mandatory=$True)]
+        [string]$LiteralPath
+    )
+
+    try {
+        $LockFile = [System.IO.FileInfo]::new($LiteralPath)
+        $LockStream = $LockFile.Open([System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+        return $LockStream
+    } 
+    catch
+    {
+        return $null
+    }
+}
+function Remove-FileLock {
+    param(
+        [parameter(Mandatory=$True)]
+        [System.IO.Stream]$FileLock
+    )
+
+    $FileLock.Close()
+    $FileLock.Dispose()
+
+    Remove-Item -Path $FileLock.Name -ErrorAction SilentlyContinue
+}
+
+#Prevent attempting to do stuff when another script is messing with the files
+$FileLockPath = (Join-Path -Path $BackupDirectory -ChildPath "BackupLock.lck")
+$FileLock = Get-FileLock -LiteralPath $FileLockPath
+if ($FileLock -eq $null) {
+    throw "A backup operation already appears to be in progress. Please wait for that to finish before manipulating backup files. If no backup operations are in progress, then a open powershell session likely was used for a backup that was cancelled. Restart PowerShell if so. (A lock to $FileLockPath could not be established)"
 }
 
 #Fill out some path variables
@@ -129,3 +132,4 @@ foreach ($File in $BackupCatalogData) {
     $FI++
 }
 Write-Progress -Activity "Restoring Files" -PercentComplete 100 -Completed
+Remove-FileLock -FileLock $FileLock
