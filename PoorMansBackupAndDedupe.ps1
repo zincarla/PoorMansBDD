@@ -239,7 +239,7 @@ if (Test-Path -LiteralPath $MasterCatalogPath) {
 
 
 if ($UseDatesForDelta) {
-    $Metrics.Add("DeltasFound", 0)
+    $Metrics.Add("FilesSkippedByDeltaCheck", 0)
     Write-Host "Importing delta catalog"
     #Compare catalogs, update hashes on what already exists
     $DeltaCatalog = Import-Csv -LiteralPath $DeltaCatalogPath
@@ -260,7 +260,7 @@ if ($UseDatesForDelta) {
         $CurrentLu = $Lut[$NewCatalogInfo[$I].Path];
         if ($CurrentLu.Hash -ne $null -and $CurrentLu.Hash -ne "" -and $CurrentLu.LastWriteTimeUtc -eq $NewCatalogInfo[$I].LastWriteTimeUtc -and $CurrentLu.CreationTimeUtc -eq $NewCatalogInfo[$I].CreationTimeUtc -and $CurrentLu.Size -eq $NewCatalogInfo[$I].Size) {
             $NewCatalogInfo[$I].Hash = $CurrentLu.Hash
-            $Metrics["DeltasFound"]+=1
+            $Metrics["FilesSkippedByDeltaCheck"]+=1
         }
         $FilesProcessed++
         Write-Progress -Activity "Parsing files to backup" -Status "Delta parse of $($NewCatalogInfo[$I].Path)" -PercentComplete ($FilesProcessed*100/$MaxFiles)
