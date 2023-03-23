@@ -289,6 +289,7 @@ Write-Progress -Activity "Hashing files" -PercentComplete 100 -Completed
 #Compare catalogs, increment old entries as needed and save new files
 Write-Progress -Activity "Backing up files" -PercentComplete 0
 $Metrics.Add("NewFiles", 0)
+$Metrics.Add("SizeOfNewFiles",[int64]0)
 for ($I=0; $I-lt $NewCatalogInfo.Length; $I++) {
     if ($NewCatalogInfo[$I].Type -ne "File") {
         continue
@@ -299,6 +300,7 @@ for ($I=0; $I-lt $NewCatalogInfo.Length; $I++) {
         $MasterLut.Add($NewCatalogInfo[$I].Hash, (New-Object -TypeName PSObject -Property @{Hash=$NewCatalogInfo[$I].Hash; Uses=1;}))
         Backup-File -Hash $NewCatalogInfo[$I].Hash -FilePath (Join-Path -Path $BackupSource -ChildPath $NewCatalogInfo[$I].Path) -BackupDirectory $BackupDirectory
         $Metrics["NewFiles"]+=1
+        $Metrics["SizeOfNewFiles"]+=[int64]$NewCatalogInfo[$I].Size
     }
     Write-Progress -Activity "Backing up files" -Status $NewCatalogInfo[$I].Path -PercentComplete ($I*100/$NewCatalogInfo.Length)
 }
